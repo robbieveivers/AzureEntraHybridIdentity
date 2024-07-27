@@ -36,3 +36,8 @@ variable "bastion" {
     subnet_name  = string
   })
 }
+
+variable "keyvault_name" {
+  description = "The name of the Key Vault"
+  type        = string
+}

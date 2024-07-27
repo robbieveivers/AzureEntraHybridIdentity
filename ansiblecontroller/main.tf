@@ -1,6 +1,6 @@
 #Attach our subnet here
 resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
+  name     = "rg-${var.resource_group_name}"
   location = var.location
 }
 
@@ -30,6 +30,12 @@ resource "azurerm_ssh_public_key" "ansible_ssh" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = var.location
   public_key          = tls_private_key.ansible_ssh.public_key_openssh
+}
+
+resource "azurerm_key_vault_secret" "ansible_ssh" {
+  name         = "${var.vm_name}-private-key"
+  value        = tls_private_key.ansible_ssh.private_key_pem
+  key_vault_id = var.key_vault_id
 }
 
 resource "azurerm_linux_virtual_machine" "controller" {

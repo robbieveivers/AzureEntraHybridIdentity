@@ -32,3 +32,8 @@ variable "subnet_id" {
   description = "The ID of the subnet to deploy the VM in."
   type        = string
 }
+
+variable "key_vault_id" {
+  description = "The ID of the Key Vault to store the private key in."
+  type        = string
+}
