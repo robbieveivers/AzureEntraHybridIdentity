@@ -7,3 +7,14 @@ module "vnet" {
   subnets             = var.virtual_network.subnets
   tags                = var.tags
 }
+
+module "ansiblecontroller" {
+  source              = "./ansiblecontroller"
+  vm_name             = var.ansible_controller.vm_name
+  resource_group_name = var.virtual_network.name
+  location            = var.location
+  vm_size             = var.ansible_controller.vm_size
+  admin_username      = var.ansible_controller.admin_username
+  subnet_id           = module.vnet.subnet_ids[var.ansible_controller.subnet_name]
+  tags                = var.tags
+}
