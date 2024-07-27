@@ -40,7 +40,7 @@ resource "azurerm_key_vault_secret" "ansible_ssh" {
 
 resource "azurerm_linux_virtual_machine" "controller" {
   name                  = "${var.vm_name}-ansible-controller"
-  resource_group_name   = var.resource_group_name
+  resource_group_name   = azurerm_resource_group.rg.name
   location              = var.location
   size                  = var.vm_size
   admin_username        = var.admin_username
