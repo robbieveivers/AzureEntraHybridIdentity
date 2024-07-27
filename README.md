@@ -1,2 +1,2 @@
 # AzureEntraHybridIdentity
-Repo where i create AD on prem and connect to Entra, For Hybrid Identity Testing
+Repo for Standing up Infra for Entra Hybrid Identity Testing
