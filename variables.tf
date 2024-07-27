@@ -28,3 +28,11 @@ variable "ansible_controller" {
     subnet_name    = string
   })
 }
+
+variable "bastion" {
+  description = "Bastion Block"
+  type = object({
+    bastion_name = string
+    subnet_name  = string
+  })
+}

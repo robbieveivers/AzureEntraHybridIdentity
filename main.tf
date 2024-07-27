@@ -18,3 +18,11 @@ module "ansiblecontroller" {
   subnet_id           = module.vnet.subnet_ids[var.ansible_controller.subnet_name]
   tags                = var.tags
 }
+
+module "bastion" {
+  source       = "./bastion"
+  bastion_name = var.bastion.bastion_name
+  location     = var.location
+  subnet_id    = module.vnet.subnet_ids[var.bastion.subnet_name]
+  tags         = var.tags
+}
