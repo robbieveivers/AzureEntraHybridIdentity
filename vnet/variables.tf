@@ -27,6 +27,19 @@ variable "subnets" {
   description = "A map of subnets to create within the virtual network."
   type = map(object({
     address_prefixes = list(string)
+    nsg = optional(object({
+      name = string
+      rules = list(object({
+        name                       = string
+        priority                   = number
+        direction                  = string
+        access                     = string
+        protocol                   = string
+        source_port_range          = string
+        destination_port_range     = string
+        source_address_prefix      = string
+        destination_address_prefix = string
+      }))
+    }))
   }))
-
 }
