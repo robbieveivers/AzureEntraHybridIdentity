@@ -37,3 +37,9 @@ variable "key_vault_id" {
   description = "The ID of the Key Vault to store the private key in."
   type        = string
 }
+
+variable "require_public_ip" {
+  description = "Boolean flag to determine if a public IP is required."
+  type        = bool
+  default     = false
+}

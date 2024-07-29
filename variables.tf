@@ -22,10 +22,11 @@ variable "virtual_network" {
 variable "ansible_controller" {
   description = "Ansible Controller Block"
   type = object({
-    vm_name        = string
-    vm_size        = string
-    admin_username = string
-    subnet_name    = string
+    vm_name           = string
+    vm_size           = string
+    admin_username    = string
+    subnet_name       = string
+    require_public_ip = bool
   })
 }
 
@@ -35,6 +36,7 @@ variable "bastion" {
     bastion_name = string
     subnet_name  = string
   })
+  default = null
 }
 
 variable "keyvault_name" {

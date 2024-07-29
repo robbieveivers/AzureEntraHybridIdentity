@@ -4,6 +4,14 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
+resource "azurerm_public_ip" "pip" {
+  count               = var.require_public_ip ? 1 : 0
+  name                = "${var.vm_name}-pip"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Dynamic"
+}
+
 resource "azurerm_network_interface" "nic" {
   name                = "${var.vm_name}-nic"
   location            = var.location
@@ -13,6 +21,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = "internal"
     subnet_id                     = var.subnet_id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = var.require_public_ip ? azurerm_public_ip.pip[0].id : null
   }
 }
 

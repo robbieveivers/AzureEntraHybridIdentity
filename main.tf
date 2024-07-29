@@ -17,11 +17,15 @@ module "ansiblecontroller" {
   admin_username      = var.ansible_controller.admin_username
   subnet_id           = module.vnet.subnet_ids[var.ansible_controller.subnet_name]
   key_vault_id        = module.keyvault.id
+  require_public_ip   = var.ansible_controller.require_public_ip
   tags                = var.tags
 }
 
 module "bastion" {
-  source       = "./bastion"
+  source = "./bastion"
+
+  count = var.bastion != null ? 1 : 0
+
   bastion_name = var.bastion.bastion_name
   location     = var.location
   subnet_id    = module.vnet.subnet_ids[var.bastion.subnet_name]
