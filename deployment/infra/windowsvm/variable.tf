@@ -29,6 +29,11 @@ variable "admin_password" {
   sensitive   = true
 }
 
+variable "subnet_id" {
+  description = "The ID of the subnet to deploy the VM in."
+  type        = string
+}
+
 variable "tags" {
   description = "A mapping of tags to assign to the resource."
   type        = map(string)

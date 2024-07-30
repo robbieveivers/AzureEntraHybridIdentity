@@ -4,5 +4,5 @@ output "bastion_public_ip" {
 }
 output "ansible_public_ip" {
   value       = module.ansiblecontroller.public_ip
-  description = "Value of the Ansible Controller Public IP, Use this to remote into hosts safely"
+  description = "Value of the Ansible Controller Public IP, Use this to remote into the Controller directly"
 }
