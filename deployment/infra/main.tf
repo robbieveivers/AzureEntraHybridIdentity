@@ -38,3 +38,16 @@ module "keyvault" {
   location      = var.location
   tags          = var.tags
 }
+
+module "windowsvm" {
+  source   = "./windowsvm"
+  for_each = var.win_virtual_machines
+
+  vm_name        = each.key
+  location       = var.location
+  vm_size        = each.value.vm_size
+  admin_username = each.value.admin_username
+  admin_password = each.value.admin_password
+  subnet_id      = module.vnet.subnet_ids[each.value.subnet_name]
+  tags           = var.tags
+}

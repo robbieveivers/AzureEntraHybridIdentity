@@ -58,6 +58,13 @@ variable "keyvault_name" {
   type        = string
 }
 
-variable "win_v" {
-  
+variable "win_virtual_machines" {
+  description = "Windows Virtual Machines Block"
+  type = map(object({
+    vm_size        = string
+    admin_username = string
+    admin_password = string
+    subnet_name    = string
+  }))
+
 }

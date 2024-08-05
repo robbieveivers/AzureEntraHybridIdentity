@@ -3,11 +3,6 @@ variable "vm_name" {
   type        = string
 }
 
-variable "resource_group_name" {
-  description = "The name of the resource group."
-  type        = string
-}
-
 variable "location" {
   description = "The location/region where the VM will be created."
   type        = string
