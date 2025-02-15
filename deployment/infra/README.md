@@ -42,4 +42,4 @@ Host target-vm
   IdentityFile ~/.ssh/id_rsa
   ProxyCommand ssh -W %h:%p ansibleadmin@<BastionHostPublicIP>
 
-  az network bastion ssh --name "bastion-host" --resource-group "rg-bastion" --target-resource-id "/subscriptions/cfdc285b-3430-4336-889b-a2d37d9f3250/resourceGroups/rg-ansiblecontroller/providers/Microsoft.Compute/virtualMachines/ansiblecontroller-ansible-controller" --auth-type "ssh-key" --username "ansiableadmin" --ssh-key "~/.ssh/id_rsa"
+  az network bastion ssh --name "bastion-host" --resource-group "rg-bastion" --target-resource-id "/subscriptions/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/resourceGroups/rg-ansiblecontroller/providers/Microsoft.Compute/virtualMachines/ansiblecontroller-ansible-controller" --auth-type "ssh-key" --username "ansiableadmin" --ssh-key "~/.ssh/id_rsa"
