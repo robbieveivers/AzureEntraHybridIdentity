@@ -23,11 +23,21 @@ RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/sh
     && apt-get install -y terraform \
     && rm -rf /var/lib/apt/lists/*
 
+# Install terraform-docs (simple and reliable)
+RUN curl -sSL -o terraform-docs.tar.gz https://github.com/terraform-docs/terraform-docs/releases/download/v0.20.0/terraform-docs-v0.20.0-linux-amd64.tar.gz \
+    && tar -xzf terraform-docs.tar.gz terraform-docs \
+    && mv terraform-docs /usr/local/bin/terraform-docs \
+    && rm terraform-docs.tar.gz
+
 # Install Azure CLI
 RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
+
 # Set default shell to bash
 SHELL ["/bin/bash", "-c"]
+
+
+
 
 # Set up a non-root user (optional, for VS Code dev containers best practice)
 ARG USERNAME=vscode
