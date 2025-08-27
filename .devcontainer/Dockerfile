@@ -36,9 +36,6 @@ RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 # Set default shell to bash
 SHELL ["/bin/bash", "-c"]
 
-
-
-
 # Set up a non-root user (optional, for VS Code dev containers best practice)
 ARG USERNAME=vscode
 ARG USER_UID=1000
