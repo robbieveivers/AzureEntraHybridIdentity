@@ -120,7 +120,7 @@ resource "azurerm_key_vault" "kv" {
   access_policy {
     tenant_id          = data.azurerm_client_config.current.tenant_id
     object_id          = azurerm_user_assigned_identity.vm_identity.principal_id
-    secret_permissions = ["Get", "List"]kv
+    secret_permissions = ["Get", "List"]
   }
 
   access_policy {
@@ -213,9 +213,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
 # Ansible provisioner with triggers and depends_on
 resource "terraform_data" "ansible_provision" {
   triggers_replace = {
-    # domain = var.domain_name
-    # testuser = var.test_user
-    # Add more triggers as needed
+    # Place the vars for the playbook here. 
     playbook = filesha256("${path.module}/create_dir.yml")
   }
 

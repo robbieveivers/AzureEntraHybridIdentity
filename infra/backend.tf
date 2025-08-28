@@ -15,6 +15,10 @@ terraform {
     msgraph = {
       source = "microsoft/msgraph"
     }
+    restapi = {
+      source  = "Mastercard/restapi"
+      version = "~> 1.19"
+    }
   }
   backend "local" {
 
@@ -27,5 +31,20 @@ provider "azurerm" {
     }
   }
   subscription_id = "f5f39478-783a-4639-a51c-b5c278fbb33c"
+}
 
+# Get Azure CLI access token for Microsoft Graph
+data "external" "az_graph_token" {
+  program = ["bash", "-c", "az account get-access-token --resource https://graph.microsoft.com --query '{access_token: accessToken}' -o json"]
+}
+
+# Configure REST API provider for Microsoft Graph
+provider "restapi" {
+  uri                  = "https://graph.microsoft.com"
+  write_returns_object = true
+  
+  headers = {
+    "Content-Type"  = "application/json"
+    "Authorization" = "Bearer ${data.external.az_graph_token.result.access_token}"
+  }
 }
