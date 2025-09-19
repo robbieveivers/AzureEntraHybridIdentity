@@ -141,10 +141,9 @@ resource "azurerm_windows_virtual_machine" "vm" {
   name                = "b2atsv4-win25"
   resource_group_name = azurerm_resource_group.rg.name
   location            = local.location
-  size                = "Standard_B2s_v2"
+  size                = "Standard_B4as_v2"
   admin_username      = "azureuser"
   admin_password      = "P@ssw0rd!23456"
-  patch_mode = "AutomaticByPlatform"
   network_interface_ids = [
     azurerm_network_interface.nic.id
   ]
@@ -153,19 +152,19 @@ resource "azurerm_windows_virtual_machine" "vm" {
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
     name                 = "b2atsv2-win2025-osdisk"
-    disk_size_gb         = 64
   }
 
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2025-datacenter-azure-edition-smalldisk"
+    sku       = "2025-datacenter-g2"
     version   = "latest"
   }
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.vm_identity.id]
   }
+  depends_on = [ azurerm_network_interface_security_group_association.nic_nsg ]
 }
 
 # Ansible provisioner with triggers and depends_on

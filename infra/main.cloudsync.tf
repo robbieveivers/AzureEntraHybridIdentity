@@ -12,7 +12,7 @@ resource "msgraph_update_resource" "enable_sync_on_tenant" {
 resource "azuread_application_from_template" "aad2entra" {
   display_name = "Entra-Cloud-Sync-${local.ad_domain}"
   template_id  = "1a4721b3-e57f-4451-ae87-ef078703ec94" #Idk it didnt find the template from the data block using a display name
-  #depends_on = [ terraform_data.ansible_provision ]
+  depends_on = [ terraform_data.ansible_provision ]
 }
 
 resource "msgraph_resource_action" "entra_cloud_sync_secrets" {
@@ -78,14 +78,14 @@ locals {
     synchronization_job_id      = msgraph_resource.entra_cloud_sync_job.output.job_id
   })
 }
-resource "msgraph_resource_action" "putschema" {
+resource "msgraph_resource_action" "put_schema" {
   resource_url = "servicePrincipals/${azuread_application_from_template.aad2entra.service_principal_object_id}/synchronization/jobs/${msgraph_resource.entra_cloud_sync_job.output.job_id}/schema"
   method       = "PUT"
   body = jsondecode(local.schema_content)
   
 }
 
-resource "msgraph_resource_action" "startjob" {
+resource "msgraph_resource_action" "start_job" {
   resource_url = "servicePrincipals/${azuread_application_from_template.aad2entra.service_principal_object_id}/synchronization/jobs/${msgraph_resource.entra_cloud_sync_job.output.job_id}"
   method       = "POST"
   action = "start"
