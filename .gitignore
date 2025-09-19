@@ -35,5 +35,4 @@ terraform.rc
 
 #Ignore dlls pulled from agent download for exploration purposes
 **/ProvisioningAgent
-infra/.entra_cloud_sync_sp_id
-infra/.terraform.lock.hcl
+*.terraform.lock.hcl

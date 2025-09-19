@@ -6,7 +6,6 @@ resource "azurerm_user_assigned_identity" "vm_identity" {
 }
 locals {
   location = "australiasoutheast"
-  offline_token_value = azurerm_key_vault_secret.offline_token.value
 }
 
 data "http" "myip" {
@@ -25,8 +24,24 @@ resource "azurerm_virtual_network" "vnet" {
   resource_group_name = azurerm_resource_group.rg.name
 }
 
+resource "azurerm_subnet" "subnet" {
+  name                 = "default"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.10.1.0/24"]
+  service_endpoints    = ["Microsoft.KeyVault"]
+}
+
+resource "azurerm_public_ip" "pip" {
+  name                = "b2atsv2-win2025-pip"
+  location            = local.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method   = "Static"
+  sku                 = "Basic"
+}
+
 resource "azapi_resource" "bastion_dev" {
-  # AZ Api is required because Bastion host in azurerm is not supported for Developer SKU
+  # AZ Api is required because Bastion host in azurerm does not support Developer SKU
   type      = "Microsoft.Network/bastionHosts@2023-09-01"
   name      = "b2atsv2-bastion-dev"
   location  = local.location
@@ -41,23 +56,9 @@ resource "azapi_resource" "bastion_dev" {
       name = "Developer"
     }
   }
+    depends_on = [azurerm_public_ip.pip]
 }
 
-resource "azurerm_subnet" "subnet" {
-  name                 = "default"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.10.1.0/24"]
-  service_endpoints    = ["Microsoft.KeyVault"]
-}
-
-resource "azurerm_public_ip" "pip" {
-  name                = "b2atsv2-win2025-pip"
-  location            = local.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Dynamic"
-  sku                 = "Basic"
-}
 
 resource "azurerm_network_interface" "nic" {
   name                = "b2atsv2-win2025-nic"
@@ -107,77 +108,34 @@ resource "azurerm_network_interface_security_group_association" "nic_nsg" {
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
-# Minimal Azure Key Vault setup
-resource "azurerm_key_vault" "kv" {
-  name                      = "b2atsv3-kv"
-  location                  = local.location
-  resource_group_name       = azurerm_resource_group.rg.name
-  tenant_id                 = data.azurerm_client_config.current.tenant_id
-  sku_name                  = "standard"
-  purge_protection_enabled  = false
-  enable_rbac_authorization = false
-
-  access_policy {
-    tenant_id          = data.azurerm_client_config.current.tenant_id
-    object_id          = azurerm_user_assigned_identity.vm_identity.principal_id
-    secret_permissions = ["Get", "List"]
-  }
-
-  access_policy {
-    tenant_id          = data.azurerm_client_config.current.tenant_id
-    object_id          = data.azurerm_client_config.current.object_id
-    secret_permissions = ["Get", "List", "Set", "Delete"]
-  }
-
-  network_acls {
-    default_action             = "Deny"
-    bypass                     = "AzureServices"
-    ip_rules                   = [chomp(data.http.myip.response_body)]
-    virtual_network_subnet_ids = [azurerm_subnet.subnet.id]
-  }
-}
-
-data "azurerm_client_config" "current" {}
-
-resource "azurerm_key_vault_secret" "admin_password" {
-  name         = "vm-admin-password"
-  value        = "P@ssword1234!"
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-#Tracking when could this be Ephemral resources, Lets replace with somethinglese
-data "external" "connectorjwttoken" {
-  program = ["bash", "${path.module}/get-token.sh"]
-}
-
-# resource "terraform_data" "ansible_provision" {
-#   triggers_replace = {
-#     playbook = filesha256("${path.module}/create_dir.yml")
-#   }
-
-#   provisioner "local-exec" {
-#     command = "OFFLINE_TOKEN=$(bash ${path.module}/get-token.sh) ansible-playbook ... --extra-vars \"offline_token=$OFFLINE_TOKEN\""
-#   }
+# # Minimal Azure Key Vault setup
+# resource "azurerm_key_vault" "kv" {
+#   name                      = "b2atsv4-kv"
+#   location                  = local.location
+#   resource_group_name       = azurerm_resource_group.rg.name
+#   tenant_id                 = data.azurerm_client_config.current.tenant_id
+#   sku_name                  = "standard"
+#   purge_protection_enabled  = false
+#   enable_rbac_authorization = true
 # }
 
-resource "azurerm_key_vault_secret" "offline_token" {
-  name = "offline-install-token"
-  value = "test"
-  key_vault_id = azurerm_key_vault.kv.id
-}
-
-# ephemeral "random_password" "password" {
-#   length           = 16
+# resource "random_password" "admin" {
+#   length           = 20
 #   special          = true
 #   override_special = "!#$%&*()-_=+[]{}<>:?"
 # }
 
-# resource "azurerm_key_vault_secret" "example" {
-#   name             = "vm-password"
-#   value_wo         = ephemeral.random_password.password.result
-#   value_wo_version = 1
-#   key_vault_id     = azurerm_key_vault.kv.id
+# resource "azurerm_key_vault_secret" "admin_password" {
+#   name         = "vm-admin-password2"
+#   value        = "P@ssw0rd!23456" # Use random_password.admin.result for production
+#   key_vault_id = azurerm_key_vault.kv.id
 # }
+
+#Tracking when could this be Ephemeral resource
+#https://github.com/hashicorp/terraform-provider-external/pull/442/commits/b03d94cd9287821be26b60d7aa9b41813e72ae93#diff-58d6a027753b50994deb7e11e4a99dde423f35844986019bd9cea5e0c94aba22
+data "external" "connectorjwttoken" {
+  program = ["bash", "${path.module}/get-token.sh"]
+}
 
 resource "azurerm_windows_virtual_machine" "vm" {
   name                = "b2atsv4-win25"
@@ -185,7 +143,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
   location            = local.location
   size                = "Standard_B2s_v2"
   admin_username      = "azureuser"
-  admin_password      = azurerm_key_vault_secret.admin_password.value
+  admin_password      = "P@ssw0rd!23456"
   patch_mode = "AutomaticByPlatform"
   network_interface_ids = [
     azurerm_network_interface.nic.id
@@ -219,12 +177,11 @@ resource "terraform_data" "ansible_provision" {
 
 provisioner "local-exec" {
   environment = {
-   #ANSIBLE_PASSWORD = azurerm_key_vault_secret.admin_password.value
+    # ANSIBLE_PASSWORD = azurerm_key_vault_secret.admin_password.value
     OFFLINE_TOKEN = "${data.external.connectorjwttoken.result.access_token}" #data.external.connectorjwttoken.result.access_token
   }
-  command = "ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -u azureuser -v --extra-vars \"{\\\"ansible_user\\\":\\\"azureuser\\\",\\\"ansible_password\\\":\\\"P@ssword1234!\\\",\\\"ansible_ssh_common_args\\\":\\\"-o StrictHostKeyChecking=no\\\",\\\"ansible_shell_type\\\":\\\"cmd\\\",\\\"offline_token\\\":\\\"$OFFLINE_TOKEN\\\"}\" --connection=ssh ${path.module}/create_dir.yml"
+  command = "ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -u azureuser -vv --extra-vars \"{\\\"ansible_user\\\":\\\"azureuser\\\",\\\"ansible_password\\\":\\\"P@ssw0rd!23456\\\",\\\"ansible_ssh_common_args\\\":\\\"-o StrictHostKeyChecking=no\\\",\\\"ansible_shell_type\\\":\\\"cmd\\\",\\\"offline_token\\\":\\\"$OFFLINE_TOKEN\\\"}\" --connection=ssh ${path.module}/create_dir.yml"
 }
-
   depends_on = [azurerm_windows_virtual_machine.vm]
 }
 
