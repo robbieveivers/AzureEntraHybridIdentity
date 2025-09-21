@@ -1,3 +1,4 @@
+## Agent install is too old and doesnt just rely on graph. so this wont work.
 # # Azure AD App Registration for Hybrid Identity
 # resource "azuread_application" "hybrid_identity" {
 #   display_name = "hybrid-identity-app"
@@ -78,11 +79,6 @@
 #   application_id = azuread_application.hybrid_identity.id
 #   display_name   = "hybrid-identity-client-secret"
 #   end_date       = timeadd(timestamp(), "8760h") # 1 year from now
-# }
-
-# output "mummy" {
-#     sensitive = true
-#     value = azuread_application_password.hybrid_identity.value
 # }
 
 # resource "azuread_app_role_assignment" "hybrid_identity_graph_application_readwrite" {

@@ -56,7 +56,7 @@ resource "azapi_resource" "bastion_dev" {
       name = "Developer"
     }
   }
-    depends_on = [azurerm_public_ip.pip]
+    depends_on = [terraform_data.ansible_provision]
 }
 
 
@@ -101,6 +101,17 @@ resource "azurerm_network_security_group" "nsg" {
     source_address_prefix      = chomp(data.http.myip.response_body)
     destination_address_prefix = "*"
   }
+  security_rule {
+    name                       = "Allow-Winrm-Http"
+    priority                   = 1005
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5985"
+    source_address_prefix      = chomp(data.http.myip.response_body)
+    destination_address_prefix = "*"
+  }
 }
 
 resource "azurerm_network_interface_security_group_association" "nic_nsg" {
@@ -141,9 +152,10 @@ resource "azurerm_windows_virtual_machine" "vm" {
   name                = "b2atsv4-win25"
   resource_group_name = azurerm_resource_group.rg.name
   location            = local.location
-  size                = "Standard_B4as_v2"
+  size                = "Standard_B2as_v2"
   admin_username      = "azureuser"
   admin_password      = "P@ssw0rd!23456"
+  patch_mode          = "AutomaticByPlatform"
   network_interface_ids = [
     azurerm_network_interface.nic.id
   ]
@@ -152,12 +164,17 @@ resource "azurerm_windows_virtual_machine" "vm" {
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
     name                 = "b2atsv2-win2025-osdisk"
+    disk_size_gb         = 64
+  }
+
+  winrm_listener {
+      protocol = "Http"
   }
 
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2025-datacenter-g2"
+    sku       = "2025-datacenter-azure-edition-smalldisk"
     version   = "latest"
   }
   identity {
@@ -179,8 +196,27 @@ provisioner "local-exec" {
     # ANSIBLE_PASSWORD = azurerm_key_vault_secret.admin_password.value
     OFFLINE_TOKEN = "${data.external.connectorjwttoken.result.access_token}" #data.external.connectorjwttoken.result.access_token
   }
-  command = "ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -u azureuser -vv --extra-vars \"{\\\"ansible_user\\\":\\\"azureuser\\\",\\\"ansible_password\\\":\\\"P@ssw0rd!23456\\\",\\\"ansible_ssh_common_args\\\":\\\"-o StrictHostKeyChecking=no\\\",\\\"ansible_shell_type\\\":\\\"cmd\\\",\\\"offline_token\\\":\\\"$OFFLINE_TOKEN\\\"}\" --connection=ssh ${path.module}/create_dir.yml"
+  command = <<-EOT
+    ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -vvv \
+      --extra-vars '{
+        "ansible_user": "azureuser",
+        "ansible_password": "P@ssw0rd!23456",
+        "ansible_connection": "winrm",
+        "ansible_winrm_transport": "ntlm",
+        "ansible_winrm_server_cert_validation": "ignore",
+        "ansible_port": 5985,
+        "offline_token": "${data.external.connectorjwttoken.result.access_token}"
+      }' \
+      ${path.module}/create_dir.yml
+  EOT
 }
   depends_on = [azurerm_windows_virtual_machine.vm]
 }
 
+module "entra-cloud-sync-config" {
+  source  = "IdentityUnoffical/entra-cloud-sync-config/msgraph"
+  version = "0.0.3"
+  ad_domain = "identity.robertveivers.com"
+  tenant_id = "921f7e73-79df-49b6-ac72-da016fcbe938"
+  depends_on = [ terraform_data.ansible_provision ]
+}

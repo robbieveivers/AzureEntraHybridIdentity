@@ -6,19 +6,6 @@
     safe_mode_password: "{{ ansible_password }}"  # Injected by Terraform
     token: "{{ offline_token }}"  # Injected by Terraform
   tasks:
-    - name: Print Ansible connection variables for debug
-      debug:
-        msg:
-          - "token: {{ token }}"
-          - "ansible_user: {{ ansible_user }}"
-          - "ansible_password: {{ ansible_password }}"
-          - "ansible_ssh_common_args: {{ ansible_ssh_common_args | default('NOT SET') }}"
-
-    - name: Create a directory
-      win_file:
-        path: C:\Users\azureuser\testdir
-        state: directory
-
     - name: Create new AD domain using microsoft.ad.domain
       microsoft.ad.domain:
         dns_domain_name: "{{ domain_name }}"
@@ -51,25 +38,56 @@
     # uses multiple DCs you will still need to wait 10 hours for replication to
     # occur or target the DC you created the key on. Required Domain Admin or
     # Enterprise Admin privileges.
-    - name: Create KDS root key if not present
+# Wait for domain services to be fully available after domain creation
+    - name: Wait for domain controller services to be ready
       ansible.windows.win_powershell:
-        error_action: stop
         script: |
-          $Ansible.Changed = $false
-          if (-not (Get-KdsRootKey)) {
-              Add-KdsRootKey -EffectiveTime ((Get-Date).AddHours(-10))
-              $Ansible.Changed = $true
+          $maxAttempts = 30
+          $attempt = 0
+          $domainReady = $false
+          
+          while ($attempt -lt $maxAttempts -and -not $domainReady) {
+              try {
+                  Write-Host "Checking domain availability (attempt $($attempt + 1)/$maxAttempts)..."
+                  
+                  # Test if we can contact the domain
+                  $domain = Get-ADDomain -ErrorAction Stop
+                  
+                  # Test if KDS service is available
+                  $kdsService = Get-Service -Name "KdsSvc" -ErrorAction Stop
+                  if ($kdsService.Status -eq "Running") {
+                      Write-Host "Domain and KDS service are ready"
+                      $domainReady = $true
+                  } else {
+                      Write-Host "KDS service not running, starting it..."
+                      Start-Service -Name "KdsSvc" -ErrorAction SilentlyContinue
+                  }
+              }
+              catch {
+                  Write-Host "Domain not ready yet: $($_.Exception.Message)"
+              }
+              
+              if (-not $domainReady) {
+                  Start-Sleep -Seconds 10
+                  $attempt++
+              }
           }
+          
+          if (-not $domainReady) {
+              throw "Domain failed to become available after $($maxAttempts * 10) seconds"
+          }
+          
+          Write-Host "Domain is ready for KDS operations"
 
-    - name: Create gMSA that allows Domain Admins to use
-      microsoft.ad.service_account:
-        identity: MyGMSA
-        dns_hostname: MyGMSA.my_org.local
-        description: GMSA for Domin Admins
-        state: present
-        allowed_to_retrieve_password:
-          set:
-            - Domain Admins
+    # - name: Create gMSA that allows Domain Admins to use
+    #   microsoft.ad.service_account:
+    #     identity: MyGMSA
+    #     dns_hostname: MyGMSA.my_org.local
+    #     description: GMSA for Domin Admins
+    #     state: present
+    #     allowed_to_retrieve_password:
+    #       set:
+    #         - Domain Admins
 
     - name: Ensure TLS 1.2 is enabled for SCHANNEL (Client)
       win_regedit:
@@ -126,27 +144,36 @@
         start_mode: auto
         state: started
 
-    - name: Download msappproxy connector installer
-      win_get_url:
-        url: https://download.msappproxy.net/Subscription/d3c8b69d-6bf7-42be-a529-3fe9c2e70c90/Connector/previewProvisioningAgentInstaller
-        dest: C:\Users\azureuser\testdir\previewProvisioningAgentInstaller.exe
-
-    - name: Install Entra Cloud Sync Provisioning Agent (native)
-      win_package:
-        path: C:\Users\azureuser\testdir\previewProvisioningAgentInstaller.exe
-        arguments: /quiet
-        state: present
+    - name: Create temp directory
+      win_file:
+        path: C:\temp
+        state: directory
 
     - name: Download msappproxy connector installer
       win_get_url:
         url: https://download.msappproxy.net/Subscription/d3c8b69d-6bf7-42be-a529-3fe9c2e70c90/Connector/previewProvisioningAgentInstaller
         dest: C:\temp\AADConnectProvisioningAgentSetup.exe
 
+    - name: Install Entra Cloud Sync Provisioning Agent (native)
+      win_package:
+        path: C:\temp\AADConnectProvisioningAgentSetup.exe
+        arguments: /quiet
+        state: present
+
     - name: Install Entra Cloud Sync Provisioning Agent (PowerShell)
       ansible.windows.win_powershell:
         script: |
           $installerProcess = Start-Process 'C:\temp\AADConnectProvisioningAgentSetup.exe' '/quiet' -NoNewWindow -PassThru
           $installerProcess.WaitForExit()
+    
+    - name: Ensure WinRM starts when the system has settled and is ready to work reliably
+      ansible.windows.win_service:
+        name: WinRM
+        start_mode: delayed
+
+    - name: Reboot a machine
+      ansible.windows.win_reboot:
+        post_reboot_delay: 120
 
     - name: Check if Provisioning Agent PowerShell module exists
       win_stat:
@@ -177,7 +204,7 @@
         start_mode: auto
         state: started
 
-    - name: Get an offline token, save it as token.txt, and configure Cloud Sync
+    - name: Configure Cloud Sync
       ansible.windows.win_powershell:
         script: |
           param(
