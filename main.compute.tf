@@ -164,15 +164,14 @@ resource "terraform_data" "ansible_provision_cloud_agent" {
 
 provisioner "local-exec" {
   environment = {
-    # ANSIBLE_PASSWORD = azurerm_key_vault_secret.admin_password.value
     OFFLINE_TOKEN = "${data.external.connectorjwttoken.result.access_token}"
   }
   ##Need to add in a bunch for variables here
   command = <<-EOT
-    ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -vvv \
+    ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -v \
       --extra-vars '{
-        "ansible_user": "azureuser",
-        "ansible_password": "P@ssw0rd!23456",
+        "ansible_user": "${var.ad_username}",
+        "ansible_password": "${var.ad_password}",
         "ansible_connection": "winrm",
         "ansible_winrm_transport": "ntlm",
         "ansible_winrm_server_cert_validation": "ignore",
