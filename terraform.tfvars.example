@@ -1,0 +1,6 @@
+location = "australiasoutheast"
+ad_name = "identity.robertveivers.com"
+ad_netbios_name = "IDENTITY"
+ad_username = "azureuser"
+ad_password = ""  # Replace with a strong password
+subscription_id = ""
