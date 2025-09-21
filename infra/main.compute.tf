@@ -1,11 +1,8 @@
-# User-assigned managed identity for VM and Key Vault
-resource "azurerm_user_assigned_identity" "vm_identity" {
-  name                = "b2atsv2-user-assigned-identity"
-  location            = local.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-locals {
-  location = "australiasoutheast"
+data "azurerm_client_config" "current" {}
+
+#using the object id lets grab the UPN of the user
+data "azuread_user" "upn_for_hybrid_identity_token_user" {
+  object_id = data.azurerm_client_config.current.object_id
 }
 
 data "http" "myip" {
@@ -13,14 +10,14 @@ data "http" "myip" {
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "b2atsv2-win2025-rg"
-  location = local.location
+  name     = "win2025-rg"
+  location = var.location
 }
 
 resource "azurerm_virtual_network" "vnet" {
-  name                = "b2atsv2-vnet"
+  name                = "vnet"
   address_space       = ["10.10.0.0/16"]
-  location            = local.location
+  location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
@@ -33,8 +30,8 @@ resource "azurerm_subnet" "subnet" {
 }
 
 resource "azurerm_public_ip" "pip" {
-  name                = "b2atsv2-win2025-pip"
-  location            = local.location
+  name                = "win2025-pip"
+  location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
   sku                 = "Basic"
@@ -43,8 +40,8 @@ resource "azurerm_public_ip" "pip" {
 resource "azapi_resource" "bastion_dev" {
   # AZ Api is required because Bastion host in azurerm does not support Developer SKU
   type      = "Microsoft.Network/bastionHosts@2023-09-01"
-  name      = "b2atsv2-bastion-dev"
-  location  = local.location
+  name      = "bastion-dev"
+  location  = var.location
   parent_id = azurerm_resource_group.rg.id
   body = {
     properties = {
@@ -56,13 +53,13 @@ resource "azapi_resource" "bastion_dev" {
       name = "Developer"
     }
   }
-    depends_on = [terraform_data.ansible_provision]
+    depends_on = [terraform_data.ansible_provision_cloud_agent]
 }
 
 
 resource "azurerm_network_interface" "nic" {
-  name                = "b2atsv2-win2025-nic"
-  location            = local.location
+  name                = "win2025-nic"
+  location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 
   ip_configuration {
@@ -74,8 +71,8 @@ resource "azurerm_network_interface" "nic" {
 }
 
 resource "azurerm_network_security_group" "nsg" {
-  name                = "b2atsv2-win2025-nsg"
-  location            = local.location
+  name                = "win2025-nsg"
+  location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 
   security_rule {
@@ -119,29 +116,6 @@ resource "azurerm_network_interface_security_group_association" "nic_nsg" {
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
-# # Minimal Azure Key Vault setup
-# resource "azurerm_key_vault" "kv" {
-#   name                      = "b2atsv4-kv"
-#   location                  = local.location
-#   resource_group_name       = azurerm_resource_group.rg.name
-#   tenant_id                 = data.azurerm_client_config.current.tenant_id
-#   sku_name                  = "standard"
-#   purge_protection_enabled  = false
-#   enable_rbac_authorization = true
-# }
-
-# resource "random_password" "admin" {
-#   length           = 20
-#   special          = true
-#   override_special = "!#$%&*()-_=+[]{}<>:?"
-# }
-
-# resource "azurerm_key_vault_secret" "admin_password" {
-#   name         = "vm-admin-password2"
-#   value        = "P@ssw0rd!23456" # Use random_password.admin.result for production
-#   key_vault_id = azurerm_key_vault.kv.id
-# }
-
 #Tracking when could this be Ephemeral resource
 #https://github.com/hashicorp/terraform-provider-external/pull/442/commits/b03d94cd9287821be26b60d7aa9b41813e72ae93#diff-58d6a027753b50994deb7e11e4a99dde423f35844986019bd9cea5e0c94aba22
 data "external" "connectorjwttoken" {
@@ -149,13 +123,13 @@ data "external" "connectorjwttoken" {
 }
 
 resource "azurerm_windows_virtual_machine" "vm" {
-  name                = "b2atsv4-win25"
+  name                = "domain-win25"
   resource_group_name = azurerm_resource_group.rg.name
-  location            = local.location
+  location            = var.location
   size                = "Standard_B2as_v2"
-  admin_username      = "azureuser"
-  admin_password      = "P@ssw0rd!23456"
-  patch_mode          = "AutomaticByPlatform"
+  admin_username      = var.ad_username
+  admin_password      = var.ad_password
+  # patch_mode          = "AutomaticByPlatform"
   network_interface_ids = [
     azurerm_network_interface.nic.id
   ]
@@ -163,10 +137,11 @@ resource "azurerm_windows_virtual_machine" "vm" {
   os_disk {
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
-    name                 = "b2atsv2-win2025-osdisk"
+    name                 = "win2025-osdisk"
     disk_size_gb         = 64
   }
 
+  #Should use HTTPS, I tried using SSH the AD ansible didnt work well with ssh.
   winrm_listener {
       protocol = "Http"
   }
@@ -174,28 +149,25 @@ resource "azurerm_windows_virtual_machine" "vm" {
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2025-datacenter-azure-edition-smalldisk"
+    sku       = "2025-datacenter-smalldisk-g2"
     version   = "latest"
-  }
-  identity {
-    type         = "UserAssigned"
-    identity_ids = [azurerm_user_assigned_identity.vm_identity.id]
   }
   depends_on = [ azurerm_network_interface_security_group_association.nic_nsg ]
 }
 
 # Ansible provisioner with triggers and depends_on
-resource "terraform_data" "ansible_provision" {
+resource "terraform_data" "ansible_provision_cloud_agent" {
   triggers_replace = {
     # Place the vars for the playbook here. 
-    playbook = filesha256("${path.module}/create_dir.yml")
+    playbook = filesha256("${path.module}/ad_enroll_agent.yml")
   }
 
 provisioner "local-exec" {
   environment = {
     # ANSIBLE_PASSWORD = azurerm_key_vault_secret.admin_password.value
-    OFFLINE_TOKEN = "${data.external.connectorjwttoken.result.access_token}" #data.external.connectorjwttoken.result.access_token
+    OFFLINE_TOKEN = "${data.external.connectorjwttoken.result.access_token}"
   }
+  ##Need to add in a bunch for variables here
   command = <<-EOT
     ansible-playbook -i '${azurerm_public_ip.pip.ip_address},' -vvv \
       --extra-vars '{
@@ -205,9 +177,14 @@ provisioner "local-exec" {
         "ansible_winrm_transport": "ntlm",
         "ansible_winrm_server_cert_validation": "ignore",
         "ansible_port": 5985,
-        "offline_token": "${data.external.connectorjwttoken.result.access_token}"
+        "offline_token": "${data.external.connectorjwttoken.result.access_token}",
+        "offline_token_upn": "${data.azuread_user.upn_for_hybrid_identity_token_user.user_principal_name}",
+        "ad_domain_name" : "${var.ad_name}",
+        "ad_netbios_name" : "${var.ad_netbios_name}",
+        "tenant_id" : "${data.azurerm_client_config.current.tenant_id}",
+        "subscription_id" : "${data.azurerm_client_config.current.subscription_id}"
       }' \
-      ${path.module}/create_dir.yml
+      ${path.module}/ad_enroll_agent.yml
   EOT
 }
   depends_on = [azurerm_windows_virtual_machine.vm]
@@ -216,7 +193,7 @@ provisioner "local-exec" {
 module "entra-cloud-sync-config" {
   source  = "IdentityUnoffical/entra-cloud-sync-config/msgraph"
   version = "0.0.3"
-  ad_domain = "identity.robertveivers.com"
-  tenant_id = "921f7e73-79df-49b6-ac72-da016fcbe938"
-  depends_on = [ terraform_data.ansible_provision ]
+  ad_domain = var.ad_name
+  tenant_id = data.azurerm_client_config.current.tenant_id
+  depends_on = [ terraform_data.ansible_provision_cloud_agent ]
 }

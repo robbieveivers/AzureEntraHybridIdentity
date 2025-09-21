@@ -2,15 +2,20 @@
 - name: Create and configure Windows VM for Entra Cloud Sync
   hosts: all
   vars:
-    domain_name: "identity.robertveivers.com"
+    domain_name: "{{ ad_domain_name }}"  # Injected by Terraform
     safe_mode_password: "{{ ansible_password }}"  # Injected by Terraform
     token: "{{ offline_token }}"  # Injected by Terraform
+    # WinRM connection settings
+    ansible_winrm_connection_timeout: 90
+    ansible_winrm_read_timeout: 90
+    ansible_winrm_operation_timeout: 90
+    ansible_connection_timeout: 90
   tasks:
     - name: Create new AD domain using microsoft.ad.domain
       microsoft.ad.domain:
         dns_domain_name: "{{ domain_name }}"
         domain_mode: Win2025
-        domain_netbios_name: IDENTITY
+        domain_netbios_name: "{{ ad_netbios_name }}"
         forest_mode: Win2025
         safe_mode_password: "{{ safe_mode_password }}"
         reboot: true
@@ -38,7 +43,7 @@
     # uses multiple DCs you will still need to wait 10 hours for replication to
     # occur or target the DC you created the key on. Required Domain Admin or
     # Enterprise Admin privileges.
-# Wait for domain services to be fully available after domain creation
+    # Wait for domain services to be fully available after domain creation
     - name: Wait for domain controller services to be ready
       ansible.windows.win_powershell:
         script: |
@@ -79,63 +84,11 @@
           
           Write-Host "Domain is ready for KDS operations"
 
-    # - name: Create gMSA that allows Domain Admins to use
-    #   microsoft.ad.service_account:
-    #     identity: MyGMSA
-    #     dns_hostname: MyGMSA.my_org.local
-    #     description: GMSA for Domin Admins
-    #     state: present
-    #     allowed_to_retrieve_password:
-    #       set:
-    #         - Domain Admins
-
-    - name: Ensure TLS 1.2 is enabled for SCHANNEL (Client)
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client
-        name: Enabled
-        data: 1
-        type: dword
-
-    - name: Ensure TLS 1.2 is enabled for SCHANNEL (Client) - DisabledByDefault
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client
-        name: DisabledByDefault
-        data: 0
-        type: dword
-
-    - name: Ensure TLS 1.2 is enabled for SCHANNEL (Server)
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server
-        name: Enabled
-        data: 1
-        type: dword
-
-    - name: Ensure TLS 1.2 is enabled for SCHANNEL (Server) - DisabledByDefault
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server
-        name: DisabledByDefault
-        data: 0
-        type: dword
-
     - name: Ensure .NET strong crypto is enabled
       win_regedit:
         path: HKLM:\SOFTWARE\Microsoft\.NETFramework\v4.0.30319
         name: SchUseStrongCrypto
         data: 1
-        type: dword
-
-    - name: Disable NTLM authentication (restrict outgoing NTLM traffic)
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0
-        name: RestrictSendingNTLMTraffic
-        data: 0 #2
-        type: dword
-
-    - name: Disable NTLM authentication (restrict incoming NTLM traffic)
-      win_regedit:
-        path: HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0
-        name: RestrictReceivingNTLMTraffic
-        data: 0 #2
         type: dword
 
     - name: Ensure Credential Manager service is running
@@ -151,7 +104,7 @@
 
     - name: Download msappproxy connector installer
       win_get_url:
-        url: https://download.msappproxy.net/Subscription/d3c8b69d-6bf7-42be-a529-3fe9c2e70c90/Connector/previewProvisioningAgentInstaller
+        url: https://download.msappproxy.net/Subscription/{{ subscription_id }}/Connector/previewProvisioningAgentInstaller
         dest: C:\temp\AADConnectProvisioningAgentSetup.exe
 
     - name: Install Entra Cloud Sync Provisioning Agent (native)
@@ -165,15 +118,6 @@
         script: |
           $installerProcess = Start-Process 'C:\temp\AADConnectProvisioningAgentSetup.exe' '/quiet' -NoNewWindow -PassThru
           $installerProcess.WaitForExit()
-    
-    - name: Ensure WinRM starts when the system has settled and is ready to work reliably
-      ansible.windows.win_service:
-        name: WinRM
-        start_mode: delayed
-
-    - name: Reboot a machine
-      ansible.windows.win_reboot:
-        post_reboot_delay: 120
 
     - name: Check if Provisioning Agent PowerShell module exists
       win_stat:
@@ -186,17 +130,6 @@
       args:
         executable: powershell.exe
       when: cloudsync_module.stat.exists
-
-    # - name: Import the Provisioning Agent PowerShell module if present
-    #   win_shell: |
-    #     if (Test-Path "C:\Program Files\Microsoft Azure AD Connect Provisioning Agent\Microsoft.CloudSync.PowerShell.dll") {
-    #       Import-Module "C:\Program Files\Microsoft Azure AD Connect Provisioning Agent\Microsoft.CloudSync.PowerShell.dll"
-    #     }
-    #   args:
-    #     executable: powershell.exe
-    # - name: Reboot the machine with all defaults
-    #   ansible.windows.win_reboot:
-
 
     - name: Ensure AADConnectProvisioningAgent service is running
       win_service:
@@ -211,22 +144,28 @@
             [Parameter(Mandatory=$true)]
             [String]$token,
             [Parameter(Mandatory=$true)]
+            [String]$tenant_id,
+            [Parameter(Mandatory=$true)]
+            [String]$domain_name,
+            [Parameter(Mandatory=$true)]
+            [String]$offline_token_upn,
+            [Parameter(Mandatory=$true)]
             [PSCredential]$domainAdminCreds
           )
-          Write-Host $token
           Import-Module "C:\\Program Files\\Microsoft Azure AD Connect Provisioning Agent\\Microsoft.CloudSync.PowerShell.dll"
-          Connect-AADCloudSyncAzureAD -AccessToken $token -TenantId "921f7e73-79df-49b6-ac72-da016fcbe938" -UserPrincipalName "robert.veivers@identity.robertveivers.com"
+          Connect-AADCloudSyncAzureAD -AccessToken $token -TenantId $tenant_id -UserPrincipalName $offline_token_upn
           Add-AADCloudSyncGMSA -Credential $domainAdminCreds
-          Add-AADCloudSyncADDomain -DomainName identity.robertveivers.com -Credential $domainAdminCreds
+          Add-AADCloudSyncADDomain -DomainName $domain_name -Credential $domainAdminCreds
           Restart-Service -Name AADConnectProvisioningAgent -Verbose
           Write-Output "Cloud Sync configuration complete!"
         parameters:
-          token: '{{ token }}'
+          token: '{{ token }}'  #the command Doesnt support securestring it wants string :(
+          offline_token_upn: '{{ offline_token_upn }}'
+          tenant_id: '{{ tenant_id }}'
+          domain_name: '{{ domain_name }}'
         sensitive_parameters:
-          # - name: token
-          #   value: '{{ token }}'
           - name: domainAdminCreds
-            username: IDENTITY\azureuser
+            username: '{{ ansible_user }}@{{ domain_name }}'
             password: '{{ ansible_password }}'
       register: cloudsync_result
       become: yes
