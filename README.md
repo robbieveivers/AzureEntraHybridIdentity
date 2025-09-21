@@ -19,6 +19,8 @@ configuing and enrolling cloud sync agent
 ### Permissions to Deploy various Azure components to a subscription
 vnet, bastion, virtual machine, disk
 
-
 https://learn.microsoft.com/en-us/entra/identity/hybrid/cloud-sync/how-to-prerequisites?tabs=public-cloud
 
+## Running directly in github codespace
+
+Simply update terraform.tfvars with your values and az login in the terminal with a Hybrid identity User with permissions to azure to deploy the vm with ad and agent.
