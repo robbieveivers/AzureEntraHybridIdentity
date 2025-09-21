@@ -13,8 +13,8 @@ RUN apt-get update \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ansible
-RUN pip3 install --no-cache-dir ansible
+# Install Ansible and pywinrm for Windows management
+RUN pip3 install --no-cache-dir ansible pywinrm
 
 # Install Terraform
 RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \
