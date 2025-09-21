@@ -23,4 +23,5 @@ provider "azurerm" {
       purge_soft_deleted_secrets_on_destroy = true
     }
   }
+  subscription_id = var.subscription_id
 }

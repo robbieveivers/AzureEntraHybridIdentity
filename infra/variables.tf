@@ -26,3 +26,8 @@ variable "ad_password" {
     type        = string
     sensitive   = true
 }
+
+variable "subscription_id" {
+  description = "The Azure Subscription ID to use."
+  type        = string
+}
