@@ -13,8 +13,8 @@ RUN apt-get update \
         unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ansible
-RUN pip3 install --no-cache-dir ansible
+# Install Ansible and pywinrm for Windows management
+RUN pip3 install --no-cache-dir ansible pywinrm
 
 # Install Terraform
 RUN curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg \
@@ -35,9 +35,6 @@ RUN curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
 # Set default shell to bash
 SHELL ["/bin/bash", "-c"]
-
-
-
 
 # Set up a non-root user (optional, for VS Code dev containers best practice)
 ARG USERNAME=vscode

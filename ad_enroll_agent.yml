@@ -1,0 +1,179 @@
+---
+- name: Create and configure Windows VM for Entra Cloud Sync
+  hosts: all
+  vars:
+    domain_name: "{{ ad_domain_name }}"  # Injected by Terraform
+    safe_mode_password: "{{ ansible_password }}"  # Injected by Terraform
+    token: "{{ offline_token }}"  # Injected by Terraform
+    # WinRM connection settings
+    ansible_winrm_connection_timeout: 90
+    ansible_winrm_read_timeout: 90
+    ansible_winrm_operation_timeout: 90
+    ansible_connection_timeout: 90
+  tasks:
+    - name: Create new AD domain using microsoft.ad.domain
+      microsoft.ad.domain:
+        dns_domain_name: "{{ domain_name }}"
+        domain_mode: Win2025
+        domain_netbios_name: "{{ ad_netbios_name }}"
+        forest_mode: Win2025
+        safe_mode_password: "{{ safe_mode_password }}"
+        reboot: true
+      register: domain_install
+
+    - name: Confirm Domain controller role
+      microsoft.ad.domain_controller:
+        dns_domain_name: "{{ domain_name }}"
+        domain_admin_user: "{{ ansible_user }}@{{ domain_name }}"
+        domain_admin_password: "{{ ansible_password }}"
+        safe_mode_password: "{{ safe_mode_password }}"
+        state: domain_controller
+        reboot: true
+
+    - name: Ensure RSAT-AD-PowerShell is installed
+      win_feature:
+        name: RSAT-AD-PowerShell
+        state: present
+
+    # https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-managed-service-accounts/group-managed-service-accounts/create-the-key-distribution-services-kds-root-key#to-create-the-kds-root-key-in-a-test-environment-for-immediate-effectiveness
+    # Added from https://docs.ansible.com/ansible/latest/collections/microsoft/ad/service_account_module.html#ansible-collections-microsoft-ad-service-account-module
+    # A gMSA requires a KDS root key to be created. This key must be valid for
+    # 10 hours before it can be used. This example creates the key and sets the
+    # time for 10 hours ago to let it be used immediately. If your environment
+    # uses multiple DCs you will still need to wait 10 hours for replication to
+    # occur or target the DC you created the key on. Required Domain Admin or
+    # Enterprise Admin privileges.
+    # Wait for domain services to be fully available after domain creation
+    - name: Wait for domain controller services to be ready
+      ansible.windows.win_powershell:
+        script: |
+          $maxAttempts = 30
+          $attempt = 0
+          $domainReady = $false
+          
+          while ($attempt -lt $maxAttempts -and -not $domainReady) {
+              try {
+                  Write-Host "Checking domain availability (attempt $($attempt + 1)/$maxAttempts)..."
+                  
+                  # Test if we can contact the domain
+                  $domain = Get-ADDomain -ErrorAction Stop
+                  
+                  # Test if KDS service is available
+                  $kdsService = Get-Service -Name "KdsSvc" -ErrorAction Stop
+                  if ($kdsService.Status -eq "Running") {
+                      Write-Host "Domain and KDS service are ready"
+                      $domainReady = $true
+                  } else {
+                      Write-Host "KDS service not running, starting it..."
+                      Start-Service -Name "KdsSvc" -ErrorAction SilentlyContinue
+                  }
+              }
+              catch {
+                  Write-Host "Domain not ready yet: $($_.Exception.Message)"
+              }
+              
+              if (-not $domainReady) {
+                  Start-Sleep -Seconds 10
+                  $attempt++
+              }
+          }
+          
+          if (-not $domainReady) {
+              throw "Domain failed to become available after $($maxAttempts * 10) seconds"
+          }
+          
+          Write-Host "Domain is ready for KDS operations"
+
+    - name: Ensure .NET strong crypto is enabled
+      win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\.NETFramework\v4.0.30319
+        name: SchUseStrongCrypto
+        data: 1
+        type: dword
+
+    - name: Ensure Credential Manager service is running
+      win_service:
+        name: VaultSvc
+        start_mode: auto
+        state: started
+
+    - name: Create temp directory
+      win_file:
+        path: C:\temp
+        state: directory
+
+    - name: Download msappproxy connector installer
+      win_get_url:
+        url: https://download.msappproxy.net/Subscription/{{ subscription_id }}/Connector/previewProvisioningAgentInstaller
+        dest: C:\temp\AADConnectProvisioningAgentSetup.exe
+
+    - name: Install Entra Cloud Sync Provisioning Agent (native)
+      win_package:
+        path: C:\temp\AADConnectProvisioningAgentSetup.exe
+        arguments: /quiet
+        state: present
+
+    - name: Install Entra Cloud Sync Provisioning Agent (PowerShell)
+      ansible.windows.win_powershell:
+        script: |
+          $installerProcess = Start-Process 'C:\temp\AADConnectProvisioningAgentSetup.exe' '/quiet' -NoNewWindow -PassThru
+          $installerProcess.WaitForExit()
+
+    - name: Check if Provisioning Agent PowerShell module exists
+      win_stat:
+        path: C:\Program Files\Microsoft Azure AD Connect Provisioning Agent\Microsoft.CloudSync.PowerShell.dll
+      register: cloudsync_module
+
+    - name: Import the Provisioning Agent PowerShell module if present
+      win_shell: |
+        Import-Module -Name '"C:\Program Files\Microsoft Azure AD Connect Provisioning Agent\Microsoft.CloudSync.PowerShell.dll"'
+      args:
+        executable: powershell.exe
+      when: cloudsync_module.stat.exists
+
+    - name: Ensure AADConnectProvisioningAgent service is running
+      win_service:
+        name: AADConnectProvisioningAgent
+        start_mode: auto
+        state: started
+
+    - name: Configure Cloud Sync
+      ansible.windows.win_powershell:
+        script: |
+          param(
+            [Parameter(Mandatory=$true)]
+            [String]$token,
+            [Parameter(Mandatory=$true)]
+            [String]$tenant_id,
+            [Parameter(Mandatory=$true)]
+            [String]$domain_name,
+            [Parameter(Mandatory=$true)]
+            [String]$offline_token_upn,
+            [Parameter(Mandatory=$true)]
+            [PSCredential]$domainAdminCreds
+          )
+          Import-Module "C:\\Program Files\\Microsoft Azure AD Connect Provisioning Agent\\Microsoft.CloudSync.PowerShell.dll"
+          Connect-AADCloudSyncAzureAD -AccessToken $token -TenantId $tenant_id -UserPrincipalName $offline_token_upn
+          Add-AADCloudSyncGMSA -Credential $domainAdminCreds
+          Add-AADCloudSyncADDomain -DomainName $domain_name -Credential $domainAdminCreds
+          Restart-Service -Name AADConnectProvisioningAgent -Verbose
+          Write-Output "Cloud Sync configuration complete!"
+        parameters:
+          token: '{{ token }}'  #the command Doesnt support securestring it wants string :(
+          offline_token_upn: '{{ offline_token_upn }}'
+          tenant_id: '{{ tenant_id }}'
+          domain_name: '{{ domain_name }}'
+        sensitive_parameters:
+          - name: domainAdminCreds
+            username: '{{ ansible_user }}@{{ domain_name }}'
+            password: '{{ ansible_password }}'
+      register: cloudsync_result
+      become: yes
+      become_method: runas
+      become_user: SYSTEM
+
+    - name: Show Cloud Sync fails
+      debug:
+        var: cloudsync_result
+
+

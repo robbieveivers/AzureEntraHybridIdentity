@@ -32,3 +32,7 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+#Ignore dlls pulled from agent download for exploration purposes
+**/ProvisioningAgent
+*.terraform.lock.hcl
