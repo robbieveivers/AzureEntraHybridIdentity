@@ -1,26 +1,93 @@
-# AzureEntraHybridIdentity
-Repo for Standing up Infra for Entra Hybrid Identity Testing
+# Azure Entra Hybrid Identity
 
-## Terraform Deploys VM on azure, Ansible Configures and Enrolls the Entra Cloud Sync agent, Terraform configures the Cloud Sync Config
+Infrastructure as Code (IaC) repository for deploying and testing Azure Entra Hybrid Identity environments.
 
-## Permissions Required.
+## Overview
 
-Warning, do not use global admin user for this activity as it involes passing around dangours tokens which use AAD graph endpoints and user_impersonation
+This project automates the deployment of a complete hybrid identity testing environment:
+- **Terraform** deploys a Windows Server 2025 VM on Azure
+- **Ansible** configures Active Directory and enrolls the Entra Cloud Sync agent
+- **Terraform** configures the Cloud Sync configuration
 
-Currently cloud sync enrollment does support SPN, it looks like user accounts required.
+## ⚠️ Security Warning
 
-The token is grabbed from Az cli rest.
+**Do not use a Global Admin account for this deployment!** This activity involves passing authentication tokens that use AAD Graph endpoints and user_impersonation scopes. Use a dedicated account with minimal required permissions instead.
 
-Set up Terraform to use AZ CLI auth with the following permissions:
+## Prerequisites
 
-### User Account with Hybrid Identity Role
-configuing and enrolling cloud sync agent
+Currently, cloud sync enrollment does not support Service Principal Names (SPN) - user accounts are required.
 
-### Permissions to Deploy various Azure components to a subscription
-vnet, bastion, virtual machine, disk
+### Authentication
 
-https://learn.microsoft.com/en-us/entra/identity/hybrid/cloud-sync/how-to-prerequisites?tabs=public-cloud
+The authentication token is obtained from the Azure CLI using `az account get-access-token`.
 
-## Running directly in github codespace
+### Required Permissions
 
-Simply update terraform.tfvars with your values and az login in the terminal with a Hybrid identity User with permissions to azure to deploy the vm with ad and agent.
+1. **User Account with Hybrid Identity Administrator Role**
+   - Required for configuring and enrolling the Cloud Sync agent
+   
+2. **Azure Subscription Permissions**
+   - Ability to deploy the following resources:
+     - Virtual Network (VNet)
+     - Azure Bastion
+     - Virtual Machine
+     - Managed Disks
+     - Network Security Groups
+     - Public IP addresses
+
+📚 **Reference**: [Cloud Sync Prerequisites](https://learn.microsoft.com/en-us/entra/identity/hybrid/cloud-sync/how-to-prerequisites?tabs=public-cloud)
+
+## 🚀 Quick Start
+
+### Running in GitHub Codespaces
+
+1. Copy the example configuration file:
+   ```bash
+   cp terraform.tfvars.example terraform.tfvars
+   ```
+
+2. Update `terraform.tfvars` with your specific values:
+   - Azure location
+   - AD domain name and NetBIOS name
+   - VM credentials (use a strong password!)
+   - Azure subscription ID
+
+3. Authenticate with Azure CLI:
+   ```bash
+   az login
+   ```
+   Use an account with the Hybrid Identity Administrator role and appropriate Azure subscription permissions.
+
+4. Initialize and apply Terraform:
+   ```bash
+   terraform init
+   terraform plan
+   terraform apply
+   ```
+
+## 📋 Configuration
+
+See `terraform.tfvars.example` for all available configuration options.
+
+## 🏗️ Architecture
+
+This deployment creates:
+- Windows Server 2025 VM with Active Directory Domain Services
+- Azure Entra Cloud Sync agent installed and configured
+- Network infrastructure (VNet, NSG, Bastion)
+- Cloud Sync configuration linked to your Azure Entra tenant
+
+## 🧹 Cleanup
+
+To remove all deployed resources:
+```bash
+terraform destroy
+```
+
+## 📝 License
+
+See LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues and pull requests.
