@@ -1,0 +1,78 @@
+name: Terraform Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  terraform:
+    name: Terraform Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: "1.6.0"
+        
+    - name: Terraform Format Check
+      run: terraform fmt -check -recursive
+      continue-on-error: true
+      
+    - name: Terraform Init
+      run: terraform init -backend=false
+      
+    - name: Terraform Validate
+      run: terraform validate
+      
+    - name: Run tflint (if available)
+      run: |
+        if command -v tflint &> /dev/null; then
+          tflint --init
+          tflint
+        else
+          echo "tflint not installed, skipping"
+        fi
+      continue-on-error: true
+
+  markdown-lint:
+    name: Markdown Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Lint Markdown files
+      uses: nosborn/github-action-markdown-cli@v3.3.0
+      with:
+        files: .
+        config_file: .markdownlint.json
+        ignore_files: .git/
+      continue-on-error: true
+
+  ansible-lint:
+    name: Ansible Linting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install Ansible and ansible-lint
+      run: |
+        pip install ansible ansible-lint
+        
+    - name: Run ansible-lint
+      run: ansible-lint ad_enroll_agent.yml
+      continue-on-error: true

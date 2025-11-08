@@ -6,14 +6,23 @@
     "customizations": {
         "vscode": {
             "settings": {
-                "terminal.integrated.shell.linux": "/bin/bash"
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "files.eol": "\n",
+                "editor.formatOnSave": true,
+                "editor.insertSpaces": true,
+                "editor.tabSize": 2
             },
             "extensions": [
                 "ms-azuretools.vscode-azurecli",
                 "hashicorp.terraform",
-                "redhat.ansible"
+                "redhat.ansible",
+                "editorconfig.editorconfig",
+                "davidanson.vscode-markdownlint"
             ]
         }
     },
-    "postCreateCommand": "ansible --version && terraform --version && az --version"
+    "postCreateCommand": "echo '✅ Tools installed:' && ansible --version && echo '' && terraform --version && echo '' && az --version",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}
+    }
 }

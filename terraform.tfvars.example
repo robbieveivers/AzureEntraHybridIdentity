@@ -1,6 +1,21 @@
+# Azure region to deploy resources
 location = "australiasoutheast"
+
+# Active Directory domain configuration
 ad_name = "identity.robertveivers.com"
 ad_netbios_name = "IDENTITY"
+
+# VM administrator credentials
 ad_username = "azureuser"
-ad_password = ""  # Replace with a strong password
-subscription_id = ""
+ad_password = ""  # REQUIRED: Use a strong password (minimum 12 characters)
+
+# Azure subscription ID
+subscription_id = ""  # REQUIRED: Your Azure subscription ID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+
+# Optional: Override default tags
+# tags = {
+#   Project     = "AzureEntraHybridIdentity"
+#   ManagedBy   = "Terraform"
+#   Environment = "Testing"
+#   Owner       = "YourName"
+# }

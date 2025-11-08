@@ -39,7 +39,26 @@ The authentication token is obtained from the Azure CLI using `az account get-ac
 
 ## 🚀 Quick Start
 
-### Running in GitHub Codespaces
+### Option 1: Using the Deploy Script (Recommended)
+
+The easiest way to deploy is using the provided deployment script:
+
+```bash
+# Make sure you're authenticated to Azure
+az login
+
+# Run the deployment script
+./deploy.sh
+```
+
+The script will:
+- ✅ Check all prerequisites (Terraform, Ansible, Azure CLI)
+- ✅ Verify Azure authentication
+- ✅ Create and validate terraform.tfvars
+- ✅ Run Terraform plan and apply
+- ✅ Display deployment outputs
+
+### Option 2: Manual Deployment
 
 1. Copy the example configuration file:
    ```bash
@@ -84,10 +103,35 @@ To remove all deployed resources:
 terraform destroy
 ```
 
+## 🛠️ Development
+
+### Pre-commit Hooks (Optional)
+
+This project includes pre-commit hooks for code quality. To use them:
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install the git hooks
+pre-commit install
+
+# Run manually on all files
+pre-commit run --all-files
+```
+
+## 📚 Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Detailed system architecture and design
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues and solutions
+- [SECURITY.md](SECURITY.md) - Security best practices and policies
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Guidelines for contributing
+- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+
 ## 📝 License
 
-See LICENSE file for details.
+See [LICENSE](LICENSE) file for details.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit issues and pull requests.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
