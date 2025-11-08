@@ -1,5 +1,10 @@
 # Azure Entra Hybrid Identity
 
+[![Terraform](https://img.shields.io/badge/Terraform-1.6+-844FBA?logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![Ansible](https://img.shields.io/badge/Ansible-2.9+-EE0000?logo=ansible&logoColor=white)](https://www.ansible.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 Infrastructure as Code (IaC) repository for deploying and testing Azure Entra Hybrid Identity environments.
 
 ## Overview
@@ -8,6 +13,8 @@ This project automates the deployment of a complete hybrid identity testing envi
 - **Terraform** deploys a Windows Server 2025 VM on Azure
 - **Ansible** configures Active Directory and enrolls the Entra Cloud Sync agent
 - **Terraform** configures the Cloud Sync configuration
+
+> 💡 **New here?** Check out the [Quick Start Guide](QUICKSTART.md) for a 5-minute setup!
 
 ## ⚠️ Security Warning
 
