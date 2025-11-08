@@ -36,3 +36,22 @@ terraform.rc
 #Ignore dlls pulled from agent download for exploration purposes
 **/ProvisioningAgent
 *.terraform.lock.hcl
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# Ansible
+*.retry
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local

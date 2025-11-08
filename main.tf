@@ -12,6 +12,7 @@ data "http" "myip" {
 resource "azurerm_resource_group" "rg" {
   name     = "win2025-rg"
   location = var.location
+  tags     = var.tags
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -19,6 +20,7 @@ resource "azurerm_virtual_network" "vnet" {
   address_space       = ["10.10.0.0/16"]
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
+  tags                = var.tags
 }
 
 resource "azurerm_subnet" "subnet" {
@@ -35,6 +37,7 @@ resource "azurerm_public_ip" "pip" {
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
   sku                 = "Basic"
+  tags                = var.tags
 }
 
 resource "azapi_resource" "bastion_dev" {
@@ -61,6 +64,7 @@ resource "azurerm_network_interface" "nic" {
   name                = "win2025-nic"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
+  tags                = var.tags
 
   ip_configuration {
     name                          = "internal"
@@ -74,6 +78,7 @@ resource "azurerm_network_security_group" "nsg" {
   name                = "win2025-nsg"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
+  tags                = var.tags
 
   security_rule {
     name                       = "Allow-RDP"
@@ -133,6 +138,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
   network_interface_ids = [
     azurerm_network_interface.nic.id
   ]
+  tags                = var.tags
 
   os_disk {
     caching              = "ReadWrite"
